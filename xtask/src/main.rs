@@ -14,6 +14,7 @@ mod flags;
 mod format;
 mod metadata;
 mod pipelines;
+mod plugin_harness;
 mod test;
 
 use anyhow::Context;
@@ -135,6 +136,7 @@ fn main() -> anyhow::Result<()> {
         flags::XtaskCmd::Run(flags) => pipelines::run(shell, flags),
         flags::XtaskCmd::Ci(flags) => ci::main(shell, flags),
         flags::XtaskCmd::Publish(flags) => pipelines::publish(shell, flags),
+        flags::XtaskCmd::Pluginharness(flags) => plugin_harness::run(shell, flags),
     }?;
 
     let elapsed = now.elapsed().as_secs();

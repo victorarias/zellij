@@ -99,6 +99,12 @@ xflags::xflags! {
             repeated args: OsString
         }
 
+        /// Run deterministic plugin-platform validation checks
+        cmd pluginharness {
+            /// Skip compile checks and run tests only
+            optional --skip-check
+        }
+
         /// Build the application and all plugins
         cmd build {
             /// Build in release mode without debug symbols
@@ -133,6 +139,7 @@ pub enum XtaskCmd {
     Run(Run),
     Format(Format),
     Test(Test),
+    Pluginharness(Pluginharness),
     Build(Build),
 }
 
@@ -163,6 +170,7 @@ pub struct E2e {
 #[derive(Debug)]
 pub struct Cross {
     pub triple: OsString,
+
     pub no_web: bool,
 }
 
@@ -193,6 +201,7 @@ pub struct Make {
 #[derive(Debug)]
 pub struct Install {
     pub destination: PathBuf,
+
     pub no_web: bool,
 }
 
@@ -214,7 +223,13 @@ pub struct Format {
 #[derive(Debug)]
 pub struct Test {
     pub args: Vec<OsString>,
+
     pub no_web: bool,
+}
+
+#[derive(Debug)]
+pub struct Pluginharness {
+    pub skip_check: bool,
 }
 
 #[derive(Debug)]
@@ -241,3 +256,4 @@ impl Xtask {
         Self::from_vec_(args)
     }
 }
+// generated end

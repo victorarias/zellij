@@ -180,6 +180,11 @@ enum CommandName {
   SetPaneBorderless = 185;
   SaveSession = 186;
   CurrentSessionLastSavedTime = 187;
+  GetGrantedPluginPermissions = 188;
+  RequestPluginStateSnapshot = 189;
+  LaunchTerminalPane = 190;
+  GetPluginLogs = 191;
+  ClearPluginLogs = 192;
 }
 
 message PluginCommand {
@@ -309,6 +314,11 @@ message PluginCommand {
     SetPaneBorderlessPayload set_pane_borderless_payload = 136;
     SaveSessionPayload save_session_payload = 137;
     CurrentSessionLastSavedTimePayload current_session_last_saved_time_payload = 138;
+    GetGrantedPluginPermissionsPayload get_granted_plugin_permissions_payload = 139;
+    RequestPluginStateSnapshotPayload request_plugin_state_snapshot_payload = 140;
+    LaunchTerminalPanePayload launch_terminal_pane_payload = 141;
+    GetPluginLogsPayload get_plugin_logs_payload = 142;
+    ClearPluginLogsPayload clear_plugin_logs_payload = 143;
   }
 }
 
@@ -924,4 +934,43 @@ message CurrentSessionLastSavedTimePayload {}
 
 message CurrentSessionLastSavedTimeResponse {
   optional uint64 timestamp_millis = 1; // None if never saved, otherwise milliseconds elapsed since last save
+}
+
+message GetGrantedPluginPermissionsPayload {}
+
+message GetGrantedPluginPermissionsResponse {
+  repeated plugin_permission.PermissionType permissions = 1;
+}
+
+message RequestPluginStateSnapshotPayload {}
+
+message LaunchTerminalPanePayload {
+  optional file.File cwd = 1;
+  optional string pane_title = 2;
+  optional string initial_input = 3;
+  optional FloatingPaneCoordinates floating_pane_coordinates = 4;
+  bool open_in_place = 5;
+  bool floating = 6;
+  bool close_plugin_after_replace = 7;
+}
+
+message LaunchTerminalPaneResponse {
+  oneof result {
+    PaneId pane_id = 1;
+    string error = 2;
+  }
+}
+
+message GetPluginLogsPayload {
+  optional uint32 max_lines = 1;
+}
+
+message GetPluginLogsResponse {
+  repeated string lines = 1;
+}
+
+message ClearPluginLogsPayload {}
+
+message ClearPluginLogsResponse {
+  bool success = 1;
 }

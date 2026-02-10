@@ -2823,6 +2823,12 @@ pub enum PipeSource {
     Keybind,     // TODO: consider including the actual keybind here?
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PipeDeliveryHint {
+    FireAndForget,
+    Durable,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PipeMessage {
     pub source: PipeSource,
@@ -2830,6 +2836,8 @@ pub struct PipeMessage {
     pub payload: Option<String>,
     pub args: BTreeMap<String, String>,
     pub is_private: bool,
+    pub request_id: Option<String>,
+    pub delivery_hint: Option<PipeDeliveryHint>,
 }
 
 impl PipeMessage {
@@ -2846,7 +2854,19 @@ impl PipeMessage {
             payload: payload.clone(),
             args: args.clone().unwrap_or_else(|| Default::default()),
             is_private,
+            request_id: None,
+            delivery_hint: None,
         }
+    }
+
+    pub fn with_envelope(
+        mut self,
+        request_id: Option<String>,
+        delivery_hint: Option<PipeDeliveryHint>,
+    ) -> Self {
+        self.request_id = request_id;
+        self.delivery_hint = delivery_hint;
+        self
     }
 }
 
@@ -3392,4 +3412,17 @@ pub enum PluginCommand {
     GetFocusedPaneInfo,
     SaveSession,
     CurrentSessionLastSavedTime,
+    GetGrantedPluginPermissions,
+    RequestPluginStateSnapshot,
+    LaunchTerminalPane {
+        cwd: Option<FileToOpen>,
+        pane_title: Option<String>,
+        initial_input: Option<String>,
+        floating_pane_coordinates: Option<FloatingPaneCoordinates>,
+        open_in_place: bool,
+        floating: bool,
+        close_plugin_after_replace: bool,
+    },
+    GetPluginLogs(Option<u32>), // optional max lines
+    ClearPluginLogs,
 }

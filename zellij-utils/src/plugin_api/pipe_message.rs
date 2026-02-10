@@ -1,7 +1,8 @@
 pub use super::generated_api::api::pipe_message::{
-    Arg as ProtobufArg, PipeMessage as ProtobufPipeMessage, PipeSource as ProtobufPipeSource,
+    Arg as ProtobufArg, DeliveryHint as ProtobufDeliveryHint, PipeMessage as ProtobufPipeMessage,
+    PipeSource as ProtobufPipeSource,
 };
-use crate::data::{PipeMessage, PipeSource};
+use crate::data::{PipeDeliveryHint, PipeMessage, PipeSource};
 
 use std::convert::TryFrom;
 
@@ -30,12 +31,23 @@ impl TryFrom<ProtobufPipeMessage> for PipeMessage {
             .map(|arg| (arg.key, arg.value))
             .collect();
         let is_private = protobuf_pipe_message.is_private;
+        let request_id = protobuf_pipe_message.request_id;
+        let delivery_hint = protobuf_pipe_message
+            .delivery_hint
+            .and_then(ProtobufDeliveryHint::from_i32)
+            .and_then(|hint| match hint {
+                ProtobufDeliveryHint::Unspecified => None,
+                ProtobufDeliveryHint::FireAndForget => Some(PipeDeliveryHint::FireAndForget),
+                ProtobufDeliveryHint::Durable => Some(PipeDeliveryHint::Durable),
+            });
         Ok(PipeMessage {
             source,
             name,
             payload,
             args,
             is_private,
+            request_id,
+            delivery_hint,
         })
     }
 }
@@ -60,6 +72,11 @@ impl TryFrom<PipeMessage> for ProtobufPipeMessage {
             .map(|(key, value)| ProtobufArg { key, value })
             .collect();
         let is_private = pipe_message.is_private;
+        let request_id = pipe_message.request_id;
+        let delivery_hint = pipe_message.delivery_hint.map(|hint| match hint {
+            PipeDeliveryHint::FireAndForget => ProtobufDeliveryHint::FireAndForget as i32,
+            PipeDeliveryHint::Durable => ProtobufDeliveryHint::Durable as i32,
+        });
         Ok(ProtobufPipeMessage {
             source,
             cli_source_id,
@@ -68,6 +85,39 @@ impl TryFrom<PipeMessage> for ProtobufPipeMessage {
             payload,
             args,
             is_private,
+            request_id,
+            delivery_hint,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn pipe_message_envelope_v2_roundtrip() {
+        let mut args = BTreeMap::new();
+        args.insert("k".to_owned(), "v".to_owned());
+        let message = PipeMessage {
+            source: PipeSource::Plugin(42),
+            name: "hello".to_owned(),
+            payload: Some("payload".to_owned()),
+            args,
+            is_private: false,
+            request_id: Some("req-123".to_owned()),
+            delivery_hint: Some(PipeDeliveryHint::Durable),
+        };
+
+        let protobuf_message: ProtobufPipeMessage = message
+            .clone()
+            .try_into()
+            .expect("failed to serialize pipe message");
+        let decoded: PipeMessage = protobuf_message
+            .try_into()
+            .expect("failed to deserialize pipe message");
+
+        assert_eq!(decoded, message);
     }
 }
