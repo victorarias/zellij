@@ -1339,14 +1339,16 @@ fn pipe_to_specific_plugins(
                 floating_pane_coordinates,
                 should_focus.unwrap_or(false),
             );
-            if let Some(target_client_id) = cli_client_id {
-                let client_scoped_ids: Vec<(PluginId, Option<ClientId>)> = all_plugin_ids
-                    .iter()
-                    .copied()
-                    .filter(|(_plugin_id, client_id)| *client_id == Some(target_client_id))
-                    .collect();
-                if !client_scoped_ids.is_empty() {
-                    all_plugin_ids = client_scoped_ids;
+            if matches!(pipe_source, PipeSource::Keybind) {
+                if let Some(target_client_id) = cli_client_id {
+                    let client_scoped_ids: Vec<(PluginId, Option<ClientId>)> = all_plugin_ids
+                        .iter()
+                        .copied()
+                        .filter(|(_plugin_id, client_id)| *client_id == Some(target_client_id))
+                        .collect();
+                    if !client_scoped_ids.is_empty() {
+                        all_plugin_ids = client_scoped_ids;
+                    }
                 }
             }
             for (plugin_id, client_id) in all_plugin_ids {
