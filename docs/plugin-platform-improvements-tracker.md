@@ -71,6 +71,9 @@ Implement generic plugin-platform improvements (not Jelly J specific), in small 
   - Switched `LaunchTerminalPane` host implementation from direct `PtyInstruction::SpawnTerminal` to routed `Action` execution (`route_action`).
   - This aligns behavior with existing stable plugin pane-launch code paths (`OpenTerminal*`, `OpenCommandPane*`) and avoids completion-only false positives where pane IDs were reported without durable pane presence.
   - Preserved existing response contract and optional `initial_input` write behavior.
+- Hardened plugin pipe delivery semantics for multi-client sessions:
+  - In `pipe_to_specific_plugins`, when a source client is known (`cli_client_id`), route to that client's plugin instance when available instead of fanning out to all instances for the same plugin location.
+  - Rationale: reduce duplicate per-keybind/plugin work across client-scoped plugin instances and avoid diverging behavior across copies.
 - `W3`-`W7` validation:
   - `cargo xtask pluginharness`
   - Verified successful execution of:
