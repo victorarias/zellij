@@ -67,6 +67,10 @@ Implement generic plugin-platform improvements (not Jelly J specific), in small 
 - Implemented `W7`:
   - Added deterministic harness command: `cargo xtask pluginharness`.
   - Harness runs targeted plugin-platform tests plus server/tile compile checks.
+- Hardened `W5` launch semantics:
+  - Switched `LaunchTerminalPane` host implementation from direct `PtyInstruction::SpawnTerminal` to routed `Action` execution (`route_action`).
+  - This aligns behavior with existing stable plugin pane-launch code paths (`OpenTerminal*`, `OpenCommandPane*`) and avoids completion-only false positives where pane IDs were reported without durable pane presence.
+  - Preserved existing response contract and optional `initial_input` write behavior.
 - `W3`-`W7` validation:
   - `cargo xtask pluginharness`
   - Verified successful execution of:

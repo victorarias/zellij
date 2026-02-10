@@ -2706,42 +2706,56 @@ fn launch_terminal_pane(
     if let Some(cwd) = cwd {
         default_shell.change_cwd(cwd);
     }
-    let terminal_action = Some(default_shell);
-    let (completion_tx, completion_rx) = oneshot::channel();
-    let completion = Some(NotificationEnd::new(completion_tx));
-
-    let send_result = if open_in_place {
-        env.senders
-            .send_to_pty(PtyInstruction::SpawnInPlaceTerminal(
-                terminal_action,
-                pane_title,
-                close_plugin_after_replace,
-                ClientTabIndexOrPaneId::PaneId(PaneId::Plugin(env.plugin_id)),
-                completion,
-            ))
-    } else {
-        let placement = if floating {
-            NewPanePlacement::Floating(floating_pane_coordinates)
-        } else {
-            NewPanePlacement::default()
-        };
-        env.senders.send_to_pty(PtyInstruction::SpawnTerminal(
-            terminal_action,
-            pane_title,
-            placement,
-            false,
-            ClientTabIndexOrPaneId::PaneId(PaneId::Plugin(env.plugin_id)),
-            completion,
-            false,
-        ))
+    let run_command_action: Option<RunCommandAction> = match default_shell {
+        TerminalAction::RunCommand(run_command) => Some(run_command.into()),
+        _ => None,
     };
 
-    let response = match send_result {
-        Ok(()) => {
-            let wait_forever = false;
-            let result =
-                wait_for_action_completion(completion_rx, "launch_terminal_pane", wait_forever);
-            match result.affected_pane_id {
+    let action = if open_in_place {
+        Action::NewInPlacePane {
+            command: run_command_action,
+            pane_name: pane_title,
+            near_current_pane: false,
+            pane_id_to_replace: None,
+            close_replace_pane: close_plugin_after_replace,
+        }
+    } else {
+        if floating {
+            Action::NewFloatingPane {
+                command: run_command_action,
+                pane_name: pane_title,
+                coordinates: floating_pane_coordinates,
+                near_current_pane: false,
+            }
+        } else {
+            Action::NewTiledPane {
+                direction: None,
+                command: run_command_action,
+                pane_name: pane_title,
+                near_current_pane: false,
+                borderless: None,
+            }
+        }
+    };
+
+    let response = match route_action(
+        action,
+        env.client_id,
+        None,
+        Some(PaneId::Plugin(env.plugin_id)),
+        env.senders.clone(),
+        env.capabilities.clone(),
+        env.client_attributes.clone(),
+        env.default_shell.clone(),
+        env.default_layout.clone(),
+        None,
+        env.keybinds.clone(),
+        env.default_mode.clone(),
+        None,
+    ) {
+        Ok((_should_break, result)) => {
+            let launched_pane_id = result.and_then(|result| result.affected_pane_id);
+            match launched_pane_id {
                 Some(pane_id) => {
                     if let Some(initial_input) = initial_input {
                         let _ = env.senders.send_to_screen(ScreenInstruction::WriteToPaneId(
@@ -2762,17 +2776,17 @@ fn launch_terminal_pane(
                             )),
                         },
                     }
-                },
+                }
                 None => ProtobufLaunchTerminalPaneResponse {
                     result: Some(launch_terminal_pane_response::Result::Error(
-                        "No pane id returned by spawn request".to_owned(),
+                        "No pane id returned from routed launch action".to_owned(),
                     )),
                 },
             }
         },
         Err(e) => ProtobufLaunchTerminalPaneResponse {
             result: Some(launch_terminal_pane_response::Result::Error(format!(
-                "Failed to launch terminal pane: {}",
+                "Failed to route launch terminal pane action: {}",
                 e
             ))),
         },
