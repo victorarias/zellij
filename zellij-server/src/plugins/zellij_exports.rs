@@ -1,6 +1,7 @@
 use super::PluginInstruction;
 use crate::background_jobs::BackgroundJob;
 use crate::global_async_runtime::get_tokio_runtime;
+use crate::logging_pipe::{clear_plugin_logs, get_plugin_logs};
 use crate::plugins::plugin_map::PluginEnv;
 use crate::plugins::wasm_bridge::handle_plugin_crash;
 use crate::pty::{ClientTabIndexOrPaneId, PtyInstruction};
@@ -71,17 +72,18 @@ use zellij_utils::{
             ProtobufLayoutParsingError, ProtobufPaneScrollbackResponse, ProtobufSyntaxError,
         },
         plugin_command::{
-            dump_layout_response, dump_session_layout_response, parse_layout_response,
-            save_session_response, ProtobufBreakPanesToNewTabResponse,
+            dump_layout_response, dump_session_layout_response, launch_terminal_pane_response,
+            parse_layout_response, save_session_response, ProtobufBreakPanesToNewTabResponse,
             ProtobufBreakPanesToTabWithIdResponse, ProtobufBreakPanesToTabWithIndexResponse,
-            ProtobufDeleteLayoutResponse, ProtobufDumpLayoutResponse,
-            ProtobufDumpSessionLayoutResponse, ProtobufEditLayoutResponse,
-            ProtobufFocusOrCreateTabResponse, ProtobufGenerateRandomNameResponse,
-            ProtobufGetFocusedPaneInfoResponse, ProtobufGetLayoutDirResponse,
+            ProtobufClearPluginLogsResponse, ProtobufDeleteLayoutResponse,
+            ProtobufDumpLayoutResponse, ProtobufDumpSessionLayoutResponse,
+            ProtobufEditLayoutResponse, ProtobufFocusOrCreateTabResponse,
+            ProtobufGenerateRandomNameResponse, ProtobufGetFocusedPaneInfoResponse,
+            ProtobufGetGrantedPluginPermissionsResponse, ProtobufGetLayoutDirResponse,
             ProtobufGetPaneCwdResponse, ProtobufGetPaneInfoResponse, ProtobufGetPanePidResponse,
-            ProtobufGetPaneRunningCommandResponse, ProtobufGetTabInfoResponse,
-            ProtobufNewTabResponse, ProtobufNewTabsResponse,
-            ProtobufOpenCommandPaneBackgroundResponse,
+            ProtobufGetPaneRunningCommandResponse, ProtobufGetPluginLogsResponse,
+            ProtobufGetTabInfoResponse, ProtobufLaunchTerminalPaneResponse, ProtobufNewTabResponse,
+            ProtobufNewTabsResponse, ProtobufOpenCommandPaneBackgroundResponse,
             ProtobufOpenCommandPaneFloatingNearPluginResponse,
             ProtobufOpenCommandPaneFloatingResponse,
             ProtobufOpenCommandPaneInPlaceOfPluginResponse, ProtobufOpenCommandPaneInPlaceResponse,
@@ -96,6 +98,7 @@ use zellij_utils::{
             ProtobufSaveLayoutResponse, ProtobufSaveSessionResponse,
         },
         plugin_ids::{ProtobufPluginIds, ProtobufZellijVersion},
+        plugin_permission::ProtobufPermissionType,
     },
 };
 
@@ -164,6 +167,32 @@ fn host_run_plugin_command(mut caller: Caller<'_, PluginEnv>) {
                     PluginCommand::CurrentSessionLastSavedTime => {
                         current_session_last_saved_time(env)
                     },
+                    PluginCommand::GetGrantedPluginPermissions => {
+                        get_granted_plugin_permissions(env)
+                    },
+                    PluginCommand::RequestPluginStateSnapshot => request_plugin_state_snapshot(env),
+                    PluginCommand::LaunchTerminalPane {
+                        cwd,
+                        pane_title,
+                        initial_input,
+                        floating_pane_coordinates,
+                        open_in_place,
+                        floating,
+                        close_plugin_after_replace,
+                    } => launch_terminal_pane(
+                        env,
+                        cwd,
+                        pane_title,
+                        initial_input,
+                        floating_pane_coordinates,
+                        open_in_place,
+                        floating,
+                        close_plugin_after_replace,
+                    ),
+                    PluginCommand::GetPluginLogs(max_lines) => {
+                        get_plugin_logs_for_plugin(env, max_lines)
+                    },
+                    PluginCommand::ClearPluginLogs => clear_plugin_logs_for_plugin(env),
                     PluginCommand::GetPaneInfo(pane_id) => get_pane_info(env, pane_id),
                     PluginCommand::GetTabInfo(tab_id) => get_tab_info(env, tab_id),
                     PluginCommand::OpenFile(file_to_open, context) => {
@@ -2931,6 +2960,155 @@ fn current_session_last_saved_time(env: &PluginEnv) {
     let _ = wasi_write_object(env, &response.encode_to_vec());
 }
 
+fn get_granted_plugin_permissions(env: &PluginEnv) {
+    let plugin_location = env.plugin.location.display();
+    let permissions = PermissionCache::from_path_or_default(None)
+        .get_permissions(plugin_location)
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|permission| ProtobufPermissionType::try_from(permission).ok())
+        .map(|permission| permission as i32)
+        .collect();
+    let response = ProtobufGetGrantedPluginPermissionsResponse { permissions };
+    let _ = wasi_write_object(env, &response.encode_to_vec());
+}
+
+fn request_plugin_state_snapshot(env: &PluginEnv) {
+    let _ = env
+        .senders
+        .send_to_screen(ScreenInstruction::RequestStateUpdateForPlugins);
+    let _ = env
+        .senders
+        .send_to_plugin(PluginInstruction::RequestStateUpdateForPlugin(
+            env.plugin_id,
+        ));
+}
+
+fn launch_terminal_pane(
+    env: &PluginEnv,
+    cwd: Option<FileToOpen>,
+    pane_title: Option<String>,
+    initial_input: Option<String>,
+    floating_pane_coordinates: Option<FloatingPaneCoordinates>,
+    open_in_place: bool,
+    floating: bool,
+    close_plugin_after_replace: bool,
+) {
+    let cwd = cwd
+        .map(|cwd| env.plugin_cwd.join(cwd.path))
+        .or_else(|| Some(env.plugin_cwd.clone()));
+    let mut default_shell = env.default_shell.clone().unwrap_or_else(|| {
+        TerminalAction::RunCommand(RunCommand {
+            command: env.path_to_default_shell.clone(),
+            use_terminal_title: true,
+            ..Default::default()
+        })
+    });
+    if let Some(cwd) = cwd {
+        default_shell.change_cwd(cwd);
+    }
+    let run_command_action: Option<RunCommandAction> = match default_shell {
+        TerminalAction::RunCommand(run_command) => Some(run_command.into()),
+        _ => None,
+    };
+
+    let action = if open_in_place {
+        Action::NewInPlacePane {
+            command: run_command_action,
+            pane_name: pane_title,
+            near_current_pane: false,
+            pane_id_to_replace: None,
+            close_replace_pane: close_plugin_after_replace,
+        }
+    } else if floating {
+        Action::NewFloatingPane {
+            command: run_command_action,
+            pane_name: pane_title,
+            coordinates: floating_pane_coordinates,
+            near_current_pane: false,
+        }
+    } else {
+        Action::NewTiledPane {
+            direction: None,
+            command: run_command_action,
+            pane_name: pane_title,
+            near_current_pane: false,
+            borderless: None,
+        }
+    };
+
+    let response = match route_action(
+        action,
+        env.client_id,
+        None,
+        Some(PaneId::Plugin(env.plugin_id)),
+        env.senders.clone(),
+        env.capabilities.clone(),
+        env.client_attributes.clone(),
+        env.default_shell.clone(),
+        env.default_layout.clone(),
+        None,
+        env.keybinds.clone(),
+        env.default_mode.clone(),
+        None,
+    ) {
+        Ok((_should_break, result)) => {
+            let launched_pane_id = result.and_then(|result| result.affected_pane_id);
+            match launched_pane_id {
+                Some(pane_id) => {
+                    if let Some(initial_input) = initial_input {
+                        let _ = env.senders.send_to_screen(ScreenInstruction::WriteToPaneId(
+                            initial_input.into_bytes(),
+                            pane_id,
+                            None,
+                        ));
+                    }
+                    let pane_id: zellij_utils::data::PaneId = pane_id.into();
+                    match pane_id.try_into() {
+                        Ok(protobuf_pane_id) => ProtobufLaunchTerminalPaneResponse {
+                            result: Some(launch_terminal_pane_response::Result::PaneId(
+                                protobuf_pane_id,
+                            )),
+                        },
+                        Err(_) => ProtobufLaunchTerminalPaneResponse {
+                            result: Some(launch_terminal_pane_response::Result::Error(
+                                "Failed to encode launched pane id".to_owned(),
+                            )),
+                        },
+                    }
+                },
+                None => ProtobufLaunchTerminalPaneResponse {
+                    result: Some(launch_terminal_pane_response::Result::Error(
+                        "No pane id returned from routed launch action".to_owned(),
+                    )),
+                },
+            }
+        },
+        Err(e) => ProtobufLaunchTerminalPaneResponse {
+            result: Some(launch_terminal_pane_response::Result::Error(format!(
+                "Failed to route launch terminal pane action: {}",
+                e
+            ))),
+        },
+    };
+
+    let _ = wasi_write_object(env, &response.encode_to_vec());
+}
+
+fn get_plugin_logs_for_plugin(env: &PluginEnv, max_lines: Option<u32>) {
+    let max_lines = max_lines.unwrap_or(200) as usize;
+    let lines = get_plugin_logs(env.plugin_id, max_lines);
+    let response = ProtobufGetPluginLogsResponse { lines };
+    let _ = wasi_write_object(env, &response.encode_to_vec());
+}
+
+fn clear_plugin_logs_for_plugin(env: &PluginEnv) {
+    let success = clear_plugin_logs(env.plugin_id);
+    let response = ProtobufClearPluginLogsResponse { success };
+    let _ = wasi_write_object(env, &response.encode_to_vec());
+}
+
 fn get_pane_info(env: &PluginEnv, pane_id: zellij_utils::data::PaneId) {
     use crossbeam::channel::RecvTimeoutError;
     use std::time::Duration;
@@ -4580,7 +4758,8 @@ fn check_command_permission(
         | PluginCommand::SaveLayout { .. }
         | PluginCommand::DeleteLayout { .. }
         | PluginCommand::RenameLayout { .. }
-        | PluginCommand::EditLayout { .. } => PermissionType::ChangeApplicationState,
+        | PluginCommand::EditLayout { .. }
+        | PluginCommand::LaunchTerminalPane { .. } => PermissionType::ChangeApplicationState,
         PluginCommand::UnblockCliPipeInput(..)
         | PluginCommand::BlockCliPipeInput(..)
         | PluginCommand::CliPipeOutput(..) => PermissionType::ReadCliPipes,
@@ -4597,6 +4776,10 @@ fn check_command_permission(
         | PluginCommand::ParseLayout(..)
         | PluginCommand::SaveSession
         | PluginCommand::CurrentSessionLastSavedTime
+        | PluginCommand::GetGrantedPluginPermissions
+        | PluginCommand::RequestPluginStateSnapshot
+        | PluginCommand::GetPluginLogs(..)
+        | PluginCommand::ClearPluginLogs
         | PluginCommand::GetPaneInfo(..)
         | PluginCommand::GetTabInfo(..) => PermissionType::ReadApplicationState,
         PluginCommand::RebindKeys { .. } | PluginCommand::Reconfigure(..) => {

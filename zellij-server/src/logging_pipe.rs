@@ -1,4 +1,8 @@
-use std::{collections::VecDeque, io::Write};
+use std::{
+    collections::{HashMap, VecDeque},
+    io::Write,
+    sync::{Mutex, OnceLock},
+};
 
 use crate::plugins::PluginId;
 use log::{debug, error};
@@ -8,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 // 16kB log buffer
 const ZELLIJ_MAX_PIPE_BUFFER_SIZE: usize = 16_384;
+const MAX_PLUGIN_LOG_LINES: usize = 400;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LoggingPipe {
     buffer: VecDeque<u8>,
@@ -25,6 +30,14 @@ impl LoggingPipe {
     }
 
     fn log_message(&self, message: &str) {
+        record_plugin_log(
+            self.plugin_id,
+            format!(
+                "{} {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S.%3f"),
+                message
+            ),
+        );
         debug!(
             "|{:<25.25}| {} [{:<10.15}] {}",
             self.plugin_name,
@@ -33,6 +46,35 @@ impl LoggingPipe {
             message
         );
     }
+}
+
+fn plugin_logs() -> &'static Mutex<HashMap<PluginId, VecDeque<String>>> {
+    static PLUGIN_LOGS: OnceLock<Mutex<HashMap<PluginId, VecDeque<String>>>> = OnceLock::new();
+    PLUGIN_LOGS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn record_plugin_log(plugin_id: PluginId, line: String) {
+    let mut logs = plugin_logs().lock().unwrap();
+    let plugin_logs = logs.entry(plugin_id).or_insert_with(VecDeque::new);
+    plugin_logs.push_back(line);
+    while plugin_logs.len() > MAX_PLUGIN_LOG_LINES {
+        plugin_logs.pop_front();
+    }
+}
+
+pub fn get_plugin_logs(plugin_id: PluginId, max_lines: usize) -> Vec<String> {
+    let logs = plugin_logs().lock().unwrap();
+    logs.get(&plugin_id)
+        .map(|entries| {
+            let skip = entries.len().saturating_sub(max_lines);
+            entries.iter().skip(skip).cloned().collect()
+        })
+        .unwrap_or_default()
+}
+
+pub fn clear_plugin_logs(plugin_id: PluginId) -> bool {
+    let mut logs = plugin_logs().lock().unwrap();
+    logs.remove(&plugin_id).is_some()
 }
 
 impl Write for LoggingPipe {

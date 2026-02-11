@@ -12,15 +12,18 @@ use zellij_utils::plugin_api::event::ProtobufPaneScrollbackResponse;
 use zellij_utils::plugin_api::generated_api::api::plugin_command::save_session_response;
 use zellij_utils::plugin_api::plugin_command::{
     dump_layout_response, dump_session_layout_response, get_focused_pane_info_response,
-    get_pane_cwd_response, get_pane_running_command_response, parse_layout_response,
-    CreateTokenResponse, ListTokensResponse, ProtobufBreakPanesToNewTabResponse,
-    ProtobufBreakPanesToTabWithIndexResponse, ProtobufCurrentSessionLastSavedTimeResponse,
+    get_pane_cwd_response, get_pane_running_command_response, launch_terminal_pane_response,
+    parse_layout_response, CreateTokenResponse, ListTokensResponse,
+    ProtobufBreakPanesToNewTabResponse, ProtobufBreakPanesToTabWithIndexResponse,
+    ProtobufClearPluginLogsResponse, ProtobufCurrentSessionLastSavedTimeResponse,
     ProtobufDeleteLayoutResponse, ProtobufDumpLayoutResponse, ProtobufDumpSessionLayoutResponse,
     ProtobufEditLayoutResponse, ProtobufFocusOrCreateTabResponse,
     ProtobufGenerateRandomNameResponse, ProtobufGetFocusedPaneInfoResponse,
-    ProtobufGetLayoutDirResponse, ProtobufGetPaneCwdResponse, ProtobufGetPaneInfoResponse,
-    ProtobufGetPanePidResponse, ProtobufGetPaneRunningCommandResponse, ProtobufGetTabInfoResponse,
-    ProtobufNewTabResponse, ProtobufNewTabsResponse, ProtobufOpenCommandPaneBackgroundResponse,
+    ProtobufGetGrantedPluginPermissionsResponse, ProtobufGetLayoutDirResponse,
+    ProtobufGetPaneCwdResponse, ProtobufGetPaneInfoResponse, ProtobufGetPanePidResponse,
+    ProtobufGetPaneRunningCommandResponse, ProtobufGetPluginLogsResponse,
+    ProtobufGetTabInfoResponse, ProtobufLaunchTerminalPaneResponse, ProtobufNewTabResponse,
+    ProtobufNewTabsResponse, ProtobufOpenCommandPaneBackgroundResponse,
     ProtobufOpenCommandPaneFloatingNearPluginResponse, ProtobufOpenCommandPaneFloatingResponse,
     ProtobufOpenCommandPaneInPlaceOfPluginResponse, ProtobufOpenCommandPaneInPlaceResponse,
     ProtobufOpenCommandPaneNearPluginResponse, ProtobufOpenCommandPaneResponse,
@@ -35,6 +38,7 @@ use zellij_utils::plugin_api::plugin_command::{
     RevokeAllWebTokensResponse, RevokeTokenResponse,
 };
 use zellij_utils::plugin_api::plugin_ids::{ProtobufPluginIds, ProtobufZellijVersion};
+use zellij_utils::plugin_api::plugin_permission::ProtobufPermissionType;
 
 pub use super::ui_components::*;
 pub use prost::{self, *};
@@ -358,6 +362,97 @@ pub fn current_session_last_saved_time() -> Option<u64> {
             .unwrap();
 
     protobuf_response.timestamp_millis
+}
+
+/// Returns the set of permissions currently granted to this plugin by the host.
+///
+/// This reflects persisted grants for this plugin identity and can be used to
+/// decide whether to request additional permissions.
+pub fn get_granted_plugin_permissions() -> Vec<PermissionType> {
+    let plugin_command = PluginCommand::GetGrantedPluginPermissions;
+    let protobuf_plugin_command: ProtobufPluginCommand = plugin_command.try_into().unwrap();
+    object_to_stdout(&protobuf_plugin_command.encode_to_vec());
+    unsafe { host_run_plugin_command() };
+
+    let response =
+        ProtobufGetGrantedPluginPermissionsResponse::decode(bytes_from_stdin().unwrap().as_slice())
+            .unwrap();
+
+    response
+        .permissions
+        .iter()
+        .filter_map(|permission| ProtobufPermissionType::from_i32(*permission))
+        .filter_map(|permission| PermissionType::try_from(permission).ok())
+        .collect()
+}
+
+/// Requests an immediate one-shot state snapshot via the existing update event stream.
+///
+/// Plugins subscribed to `ModeUpdate`, `TabUpdate`, `PaneUpdate` and related read-state
+/// events will receive fresh updates after this call.
+pub fn request_plugin_state_snapshot() {
+    let plugin_command = PluginCommand::RequestPluginStateSnapshot;
+    let protobuf_plugin_command: ProtobufPluginCommand = plugin_command.try_into().unwrap();
+    object_to_stdout(&protobuf_plugin_command.encode_to_vec());
+    unsafe { host_run_plugin_command() };
+}
+
+/// Launches a terminal pane atomically and optionally writes initial input to it.
+///
+/// This avoids race-prone multi-step sequences in plugins (open pane, find pane id, write input).
+pub fn launch_terminal_pane(
+    cwd: Option<FileToOpen>,
+    pane_title: Option<String>,
+    initial_input: Option<String>,
+    floating_pane_coordinates: Option<FloatingPaneCoordinates>,
+    open_in_place: bool,
+    floating: bool,
+    close_plugin_after_replace: bool,
+) -> Result<PaneId, String> {
+    let plugin_command = PluginCommand::LaunchTerminalPane {
+        cwd,
+        pane_title,
+        initial_input,
+        floating_pane_coordinates,
+        open_in_place,
+        floating,
+        close_plugin_after_replace,
+    };
+    let protobuf_plugin_command: ProtobufPluginCommand = plugin_command.try_into().unwrap();
+    object_to_stdout(&protobuf_plugin_command.encode_to_vec());
+    unsafe { host_run_plugin_command() };
+    let response =
+        ProtobufLaunchTerminalPaneResponse::decode(bytes_from_stdin().unwrap().as_slice()).unwrap();
+
+    match response.result {
+        Some(launch_terminal_pane_response::Result::PaneId(pane_id)) => pane_id
+            .try_into()
+            .map_err(|_| "Invalid pane id in launch_terminal_pane response".to_owned()),
+        Some(launch_terminal_pane_response::Result::Error(error)) => Err(error),
+        None => Err("Host returned empty launch_terminal_pane response".to_owned()),
+    }
+}
+
+/// Returns recent host-managed log lines emitted by this plugin.
+pub fn get_plugin_logs(max_lines: Option<u32>) -> Vec<String> {
+    let plugin_command = PluginCommand::GetPluginLogs(max_lines);
+    let protobuf_plugin_command: ProtobufPluginCommand = plugin_command.try_into().unwrap();
+    object_to_stdout(&protobuf_plugin_command.encode_to_vec());
+    unsafe { host_run_plugin_command() };
+    let response =
+        ProtobufGetPluginLogsResponse::decode(bytes_from_stdin().unwrap().as_slice()).unwrap();
+    response.lines
+}
+
+/// Clears host-managed log lines for this plugin instance id.
+pub fn clear_plugin_logs() -> bool {
+    let plugin_command = PluginCommand::ClearPluginLogs;
+    let protobuf_plugin_command: ProtobufPluginCommand = plugin_command.try_into().unwrap();
+    object_to_stdout(&protobuf_plugin_command.encode_to_vec());
+    unsafe { host_run_plugin_command() };
+    let response =
+        ProtobufClearPluginLogsResponse::decode(bytes_from_stdin().unwrap().as_slice()).unwrap();
+    response.success
 }
 
 // Host Functions

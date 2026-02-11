@@ -3,7 +3,7 @@
 pub struct PluginCommand {
     #[prost(enumeration="CommandName", tag="1")]
     pub name: i32,
-    #[prost(oneof="plugin_command::Payload", tags="2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147")]
+    #[prost(oneof="plugin_command::Payload", tags="2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 149, 150, 151, 152")]
     pub payload: ::core::option::Option<plugin_command::Payload>,
 }
 /// Nested message and enum types in `PluginCommand`.
@@ -277,6 +277,16 @@ pub mod plugin_command {
         RenameTabWithIdPayload(super::RenameTabWithIdPayload),
         #[prost(message, tag="147")]
         BreakPanesToTabWithIdPayload(super::BreakPanesToTabWithIdPayload),
+        #[prost(message, tag="148")]
+        GetGrantedPluginPermissionsPayload(super::GetGrantedPluginPermissionsPayload),
+        #[prost(message, tag="149")]
+        RequestPluginStateSnapshotPayload(super::RequestPluginStateSnapshotPayload),
+        #[prost(message, tag="150")]
+        LaunchTerminalPanePayload(super::LaunchTerminalPanePayload),
+        #[prost(message, tag="151")]
+        GetPluginLogsPayload(super::GetPluginLogsPayload),
+        #[prost(message, tag="152")]
+        ClearPluginLogsPayload(super::ClearPluginLogsPayload),
     }
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -1407,6 +1417,77 @@ pub struct CurrentSessionLastSavedTimeResponse {
 }
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetGrantedPluginPermissionsPayload {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetGrantedPluginPermissionsResponse {
+    #[prost(enumeration="super::plugin_permission::PermissionType", repeated, tag="1")]
+    pub permissions: ::prost::alloc::vec::Vec<i32>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RequestPluginStateSnapshotPayload {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LaunchTerminalPanePayload {
+    #[prost(message, optional, tag="1")]
+    pub cwd: ::core::option::Option<super::file::File>,
+    #[prost(string, optional, tag="2")]
+    pub pane_title: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag="3")]
+    pub initial_input: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, optional, tag="4")]
+    pub floating_pane_coordinates: ::core::option::Option<FloatingPaneCoordinates>,
+    #[prost(bool, tag="5")]
+    pub open_in_place: bool,
+    #[prost(bool, tag="6")]
+    pub floating: bool,
+    #[prost(bool, tag="7")]
+    pub close_plugin_after_replace: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LaunchTerminalPaneResponse {
+    #[prost(oneof="launch_terminal_pane_response::Result", tags="1, 2")]
+    pub result: ::core::option::Option<launch_terminal_pane_response::Result>,
+}
+/// Nested message and enum types in `LaunchTerminalPaneResponse`.
+pub mod launch_terminal_pane_response {
+    #[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Result {
+        #[prost(message, tag="1")]
+        PaneId(super::PaneId),
+        #[prost(string, tag="2")]
+        Error(::prost::alloc::string::String),
+    }
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPluginLogsPayload {
+    #[prost(uint32, optional, tag="1")]
+    pub max_lines: ::core::option::Option<u32>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GetPluginLogsResponse {
+    #[prost(string, repeated, tag="1")]
+    pub lines: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ClearPluginLogsPayload {
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct ClearPluginLogsResponse {
+    #[prost(bool, tag="1")]
+    pub success: bool,
+}
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetPaneInfoPayload {
     #[prost(message, optional, tag="1")]
     pub pane_id: ::core::option::Option<PaneId>,
@@ -1803,6 +1884,11 @@ pub enum CommandName {
     CloseTabWithId = 194,
     RenameTabWithId = 195,
     BreakPanesToTabWithId = 196,
+    GetGrantedPluginPermissions = 197,
+    RequestPluginStateSnapshot = 198,
+    LaunchTerminalPane = 199,
+    GetPluginLogs = 200,
+    ClearPluginLogs = 201,
 }
 impl CommandName {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -1987,6 +2073,11 @@ impl CommandName {
             CommandName::CloseTabWithId => "CloseTabWithId",
             CommandName::RenameTabWithId => "RenameTabWithId",
             CommandName::BreakPanesToTabWithId => "BreakPanesToTabWithId",
+            CommandName::GetGrantedPluginPermissions => "GetGrantedPluginPermissions",
+            CommandName::RequestPluginStateSnapshot => "RequestPluginStateSnapshot",
+            CommandName::LaunchTerminalPane => "LaunchTerminalPane",
+            CommandName::GetPluginLogs => "GetPluginLogs",
+            CommandName::ClearPluginLogs => "ClearPluginLogs",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -2168,6 +2259,11 @@ impl CommandName {
             "CloseTabWithId" => Some(Self::CloseTabWithId),
             "RenameTabWithId" => Some(Self::RenameTabWithId),
             "BreakPanesToTabWithId" => Some(Self::BreakPanesToTabWithId),
+            "GetGrantedPluginPermissions" => Some(Self::GetGrantedPluginPermissions),
+            "RequestPluginStateSnapshot" => Some(Self::RequestPluginStateSnapshot),
+            "LaunchTerminalPane" => Some(Self::LaunchTerminalPane),
+            "GetPluginLogs" => Some(Self::GetPluginLogs),
+            "ClearPluginLogs" => Some(Self::ClearPluginLogs),
             _ => None,
         }
     }

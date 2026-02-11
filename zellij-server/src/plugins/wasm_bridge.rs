@@ -1,5 +1,6 @@
 use super::{PinnedExecutor, PluginId, PluginInstruction};
 use crate::global_async_runtime::get_tokio_runtime;
+use crate::logging_pipe::clear_plugin_logs;
 use crate::plugins::pipes::{
     apply_pipe_message_to_plugin, pipes_to_block_or_unblock, PendingPipes, PipeStateChange,
 };
@@ -474,6 +475,7 @@ impl WasmBridge {
     }
     pub fn unload_plugin(&mut self, pid: PluginId) -> Result<()> {
         info!("Bye from plugin {}", &pid);
+        let _ = clear_plugin_logs(pid);
 
         // Remove from plugin_map on main thread
         let plugins_to_cleanup: Vec<_> = {
@@ -1709,7 +1711,7 @@ impl WasmBridge {
 
         let mut permission_cache = PermissionCache::from_path_or_default(cache_path);
         permission_cache.cache(
-            running_plugin.store.data().plugin.location.to_string(),
+            running_plugin.store.data().plugin.location.display(),
             permissions,
         );
 
