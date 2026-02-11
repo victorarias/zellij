@@ -7,6 +7,36 @@
   <br>
 </h1>
 
+## Experimental Fork Notice (Jelly J plugin-platform work)
+
+This fork is an experimental branch of Zellij used to validate generic plugin-platform improvements needed by Jelly J and other stateful plugins.
+
+Base and scope:
+- Upstream base: `zellij-org/zellij` `main` at `97744ad0`
+- Local fork commits (current): `81dc6834`, `304046a1`, `4aee2044`, `e31920fe`
+- Detailed technical notes: `docs/plugin-platform-improvements-tracker.md` and `docs/plugin-platform-upstream-notes.md`
+
+What was added or changed:
+- Canonical plugin identity aliasing for permission/cache consistency across path and `file:` URL variants
+- Permission introspection API (`GetGrantedPluginPermissions`)
+- Plugin startup bootstrap API (`RequestPluginStateSnapshot`)
+- Pipe envelope metadata (`request_id`, `delivery_hint`) with backward-compatible optional fields
+- Atomic terminal launch API (`LaunchTerminalPane`) with optional initial stdin write
+- Host-managed plugin log APIs (`GetPluginLogs`, `ClearPluginLogs`)
+- Deterministic plugin harness workflow (`cargo xtask pluginharness`)
+- Routing hardening: `LaunchTerminalPane` execution aligned with the action engine
+- Keybind pipe routing scoped to source client for specific-plugin delivery in multi-client sessions
+
+Why this exists:
+- Stateful plugins need deterministic startup state and launch semantics.
+- Plugin debugging needs first-class observability instead of ad hoc logs.
+- Multi-client sessions exposed keybind fanout/routing edge cases.
+- We wanted merge-friendly, generic improvements that can be proposed upstream in slices.
+
+Important expectations:
+- This fork is pre-release and may diverge from upstream behavior while experiments are active.
+- API/semantics here should be treated as experimental until discussed and accepted upstream.
+
 <p align="center">
   <a href="https://discord.gg/CrUAFH3"><img alt="Discord Chat" src="https://img.shields.io/discord/771367133715628073?color=5865F2&label=discord&style=flat-square"></a>
   <a href="https://matrix.to/#/#zellij_general:matrix.org"><img alt="Matrix Chat" src="https://img.shields.io/matrix/zellij_general:matrix.org?color=1d7e64&label=matrix%20chat&style=flat-square&logo=matrix"></a>
