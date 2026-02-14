@@ -1326,7 +1326,7 @@ fn pipe_to_specific_plugins(
     ) {
         Ok(run_plugin_or_alias) => {
             let initial_cwd = run_plugin_or_alias.get_initial_cwd();
-            let all_plugin_ids = wasm_bridge.get_or_load_plugins(
+            let mut all_plugin_ids = wasm_bridge.get_or_load_plugins(
                 run_plugin_or_alias,
                 size,
                 initial_cwd.or_else(|| cwd.clone()),
@@ -1339,6 +1339,18 @@ fn pipe_to_specific_plugins(
                 floating_pane_coordinates,
                 should_focus.unwrap_or(false),
             );
+            if matches!(pipe_source, PipeSource::Keybind) {
+                if let Some(target_client_id) = cli_client_id {
+                    let client_scoped_ids: Vec<(PluginId, Option<ClientId>)> = all_plugin_ids
+                        .iter()
+                        .copied()
+                        .filter(|(_plugin_id, client_id)| *client_id == Some(target_client_id))
+                        .collect();
+                    if !client_scoped_ids.is_empty() {
+                        all_plugin_ids = client_scoped_ids;
+                    }
+                }
+            }
             for (plugin_id, client_id) in all_plugin_ids {
                 pipe_messages.push((
                     Some(plugin_id),
