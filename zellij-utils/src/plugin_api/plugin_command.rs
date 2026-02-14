@@ -7,19 +7,20 @@ pub use super::generated_api::api::{
         break_panes_to_tab_with_index_response, delete_layout_response, dump_layout_response,
         dump_session_layout_response, edit_layout_response, focus_or_create_tab_response,
         get_focused_pane_info_response, get_pane_cwd_response, get_pane_pid_response,
-        get_pane_running_command_response, new_tab_response, parse_layout_response,
-        plugin_command::Payload, rename_layout_response, save_layout_response,
-        save_session_response, BreakPanesToNewTabPayload,
+        get_pane_running_command_response, launch_terminal_pane_response, new_tab_response,
+        parse_layout_response, plugin_command::Payload, rename_layout_response,
+        save_layout_response, save_session_response, BreakPanesToNewTabPayload,
         BreakPanesToNewTabResponse as ProtobufBreakPanesToNewTabResponse,
         BreakPanesToTabWithIdPayload,
         BreakPanesToTabWithIdResponse as ProtobufBreakPanesToTabWithIdResponse,
         BreakPanesToTabWithIndexPayload,
         BreakPanesToTabWithIndexResponse as ProtobufBreakPanesToTabWithIndexResponse,
-        ChangeFloatingPanesCoordinatesPayload, ChangeHostFolderPayload,
-        ClearScreenForPaneIdPayload, CliPipeOutputPayload, CloseMultiplePanesPayload,
-        CloseTabWithIdPayload, CloseTabWithIndexPayload, CommandName, ContextItem,
-        CopyToClipboardPayload, CreateTokenResponse as ProtobufCreateTokenResponse,
-        CreateTokenResponse, CurrentSessionLastSavedTimePayload,
+        ChangeFloatingPanesCoordinatesPayload, ChangeHostFolderPayload, ClearPluginLogsPayload,
+        ClearPluginLogsResponse as ProtobufClearPluginLogsResponse, ClearScreenForPaneIdPayload,
+        CliPipeOutputPayload, CloseMultiplePanesPayload, CloseTabWithIdPayload,
+        CloseTabWithIndexPayload, CommandName, ContextItem, CopyToClipboardPayload,
+        CreateTokenResponse as ProtobufCreateTokenResponse, CreateTokenResponse,
+        CurrentSessionLastSavedTimePayload,
         CurrentSessionLastSavedTimeResponse as ProtobufCurrentSessionLastSavedTimeResponse,
         CursorPosition, DeleteLayoutPayload, DeleteLayoutResponse as ProtobufDeleteLayoutResponse,
         DumpLayoutPayload, DumpLayoutResponse as ProtobufDumpLayoutResponse,
@@ -33,23 +34,27 @@ pub use super::generated_api::api::{
         GenerateRandomNamePayload,
         GenerateRandomNameResponse as ProtobufGenerateRandomNameResponse,
         GenerateWebLoginTokenPayload, GetFocusedPaneInfoPayload,
-        GetFocusedPaneInfoResponse as ProtobufGetFocusedPaneInfoResponse, GetLayoutDirPayload,
-        GetLayoutDirResponse as ProtobufGetLayoutDirResponse,
+        GetFocusedPaneInfoResponse as ProtobufGetFocusedPaneInfoResponse,
+        GetGrantedPluginPermissionsPayload,
+        GetGrantedPluginPermissionsResponse as ProtobufGetGrantedPluginPermissionsResponse,
+        GetLayoutDirPayload, GetLayoutDirResponse as ProtobufGetLayoutDirResponse,
         GetPaneCwdPayload as ProtobufGetPaneCwdPayload,
         GetPaneCwdResponse as ProtobufGetPaneCwdResponse, GetPaneInfoPayload,
         GetPaneInfoResponse as ProtobufGetPaneInfoResponse, GetPanePidPayload,
         GetPanePidResponse as ProtobufGetPanePidResponse,
         GetPaneRunningCommandPayload as ProtobufGetPaneRunningCommandPayload,
         GetPaneRunningCommandResponse as ProtobufGetPaneRunningCommandResponse,
-        GetPaneScrollbackPayload, GetTabInfoPayload,
+        GetPaneScrollbackPayload, GetPluginLogsPayload,
+        GetPluginLogsResponse as ProtobufGetPluginLogsResponse, GetTabInfoPayload,
         GetTabInfoResponse as ProtobufGetTabInfoResponse, GoToTabWithIdPayload,
         GroupAndUngroupPanesPayload, HidePaneWithIdPayload, HighlightAndUnhighlightPanesPayload,
         HttpVerb as ProtobufHttpVerb, IdAndNewName, KeyToRebind, KeyToUnbind, KillSessionsPayload,
-        ListTokensResponse, LoadNewPluginPayload, MessageToPluginPayload,
-        MovePaneWithPaneIdInDirectionPayload, MovePaneWithPaneIdPayload, MovePayload,
-        NewPluginArgs as ProtobufNewPluginArgs, NewTabPayload,
-        NewTabResponse as ProtobufNewTabResponse, NewTabsResponse as ProtobufNewTabsResponse,
-        NewTabsWithLayoutInfoPayload,
+        LaunchTerminalPanePayload,
+        LaunchTerminalPaneResponse as ProtobufLaunchTerminalPaneResponse, ListTokensResponse,
+        LoadNewPluginPayload, MessageToPluginPayload, MovePaneWithPaneIdInDirectionPayload,
+        MovePaneWithPaneIdPayload, MovePayload, NewPluginArgs as ProtobufNewPluginArgs,
+        NewTabPayload, NewTabResponse as ProtobufNewTabResponse,
+        NewTabsResponse as ProtobufNewTabsResponse, NewTabsWithLayoutInfoPayload,
         OpenCommandPaneBackgroundResponse as ProtobufOpenCommandPaneBackgroundResponse,
         OpenCommandPaneFloatingNearPluginPayload,
         OpenCommandPaneFloatingNearPluginResponse as ProtobufOpenCommandPaneFloatingNearPluginResponse,
@@ -83,10 +88,11 @@ pub use super::generated_api::api::{
         RenameLayoutPayload, RenameLayoutResponse as ProtobufRenameLayoutResponse,
         RenameTabWithIdPayload, RenameWebLoginTokenPayload, RenameWebTokenResponse,
         ReplacePaneWithExistingPanePayload, RequestPluginPermissionPayload,
-        RerunCommandPanePayload, ResizePaneIdWithDirectionPayload, ResizePayload,
-        RevokeAllWebTokensResponse, RevokeTokenResponse, RevokeWebLoginTokenPayload,
-        RunActionPayload, RunCommandPayload, RunningCommand as ProtobufRunningCommand,
-        SaveLayoutPayload, SaveLayoutResponse as ProtobufSaveLayoutResponse, SaveSessionPayload,
+        RequestPluginStateSnapshotPayload, RerunCommandPanePayload,
+        ResizePaneIdWithDirectionPayload, ResizePayload, RevokeAllWebTokensResponse,
+        RevokeTokenResponse, RevokeWebLoginTokenPayload, RunActionPayload, RunCommandPayload,
+        RunningCommand as ProtobufRunningCommand, SaveLayoutPayload,
+        SaveLayoutResponse as ProtobufSaveLayoutResponse, SaveSessionPayload,
         SaveSessionResponse as ProtobufSaveSessionResponse, ScrollDownInPaneIdPayload,
         ScrollToBottomInPaneIdPayload, ScrollToTopInPaneIdPayload, ScrollUpInPaneIdPayload,
         SetFloatingPanePinnedPayload, SetPaneBorderlessPayload,
@@ -2242,6 +2248,35 @@ impl TryFrom<ProtobufPluginCommand> for PluginCommand {
             Some(CommandName::CurrentSessionLastSavedTime) => {
                 Ok(PluginCommand::CurrentSessionLastSavedTime)
             },
+            Some(CommandName::GetGrantedPluginPermissions) => {
+                Ok(PluginCommand::GetGrantedPluginPermissions)
+            },
+            Some(CommandName::RequestPluginStateSnapshot) => {
+                Ok(PluginCommand::RequestPluginStateSnapshot)
+            },
+            Some(CommandName::LaunchTerminalPane) => match protobuf_plugin_command.payload {
+                Some(Payload::LaunchTerminalPanePayload(payload)) => {
+                    Ok(PluginCommand::LaunchTerminalPane {
+                        cwd: payload.cwd.and_then(|cwd| cwd.try_into().ok()),
+                        pane_title: payload.pane_title,
+                        initial_input: payload.initial_input,
+                        floating_pane_coordinates: payload
+                            .floating_pane_coordinates
+                            .map(|coordinates| coordinates.into()),
+                        open_in_place: payload.open_in_place,
+                        floating: payload.floating,
+                        close_plugin_after_replace: payload.close_plugin_after_replace,
+                    })
+                },
+                _ => Err("Mismatched payload for LaunchTerminalPane"),
+            },
+            Some(CommandName::GetPluginLogs) => match protobuf_plugin_command.payload {
+                Some(Payload::GetPluginLogsPayload(payload)) => {
+                    Ok(PluginCommand::GetPluginLogs(payload.max_lines))
+                },
+                _ => Err("Mismatched payload for GetPluginLogs"),
+            },
+            Some(CommandName::ClearPluginLogs) => Ok(PluginCommand::ClearPluginLogs),
             Some(CommandName::GetPaneInfo) => match protobuf_plugin_command.payload {
                 Some(Payload::GetPaneInfoPayload(get_pane_info_payload)) => {
                     let pane_id = get_pane_info_payload
@@ -3665,6 +3700,51 @@ impl TryFrom<PluginCommand> for ProtobufPluginCommand {
                     CurrentSessionLastSavedTimePayload {},
                 )),
             }),
+            PluginCommand::GetGrantedPluginPermissions => Ok(ProtobufPluginCommand {
+                name: CommandName::GetGrantedPluginPermissions as i32,
+                payload: Some(Payload::GetGrantedPluginPermissionsPayload(
+                    GetGrantedPluginPermissionsPayload {},
+                )),
+            }),
+            PluginCommand::RequestPluginStateSnapshot => Ok(ProtobufPluginCommand {
+                name: CommandName::RequestPluginStateSnapshot as i32,
+                payload: Some(Payload::RequestPluginStateSnapshotPayload(
+                    RequestPluginStateSnapshotPayload {},
+                )),
+            }),
+            PluginCommand::LaunchTerminalPane {
+                cwd,
+                pane_title,
+                initial_input,
+                floating_pane_coordinates,
+                open_in_place,
+                floating,
+                close_plugin_after_replace,
+            } => Ok(ProtobufPluginCommand {
+                name: CommandName::LaunchTerminalPane as i32,
+                payload: Some(Payload::LaunchTerminalPanePayload(
+                    LaunchTerminalPanePayload {
+                        cwd: cwd.and_then(|cwd| cwd.try_into().ok()),
+                        pane_title,
+                        initial_input,
+                        floating_pane_coordinates: floating_pane_coordinates
+                            .map(|coordinates| coordinates.into()),
+                        open_in_place,
+                        floating,
+                        close_plugin_after_replace,
+                    },
+                )),
+            }),
+            PluginCommand::GetPluginLogs(max_lines) => Ok(ProtobufPluginCommand {
+                name: CommandName::GetPluginLogs as i32,
+                payload: Some(Payload::GetPluginLogsPayload(GetPluginLogsPayload {
+                    max_lines,
+                })),
+            }),
+            PluginCommand::ClearPluginLogs => Ok(ProtobufPluginCommand {
+                name: CommandName::ClearPluginLogs as i32,
+                payload: Some(Payload::ClearPluginLogsPayload(ClearPluginLogsPayload {})),
+            }),
             PluginCommand::GetPaneInfo(pane_id) => {
                 let protobuf_pane_id: ProtobufPaneId = pane_id.try_into()?;
                 Ok(ProtobufPluginCommand {
@@ -4186,5 +4266,115 @@ impl From<OpenCommandPaneBackgroundResponse> for ProtobufOpenCommandPaneBackgrou
         ProtobufOpenCommandPaneBackgroundResponse {
             pane_id: response.map(|p| p.try_into().unwrap()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serialize_get_granted_plugin_permissions_command() {
+        let protobuf_plugin_command: ProtobufPluginCommand =
+            PluginCommand::GetGrantedPluginPermissions
+                .try_into()
+                .expect("failed to serialize get-granted-permissions command");
+
+        assert_eq!(
+            protobuf_plugin_command.name,
+            CommandName::GetGrantedPluginPermissions as i32
+        );
+        assert!(matches!(
+            protobuf_plugin_command.payload,
+            Some(Payload::GetGrantedPluginPermissionsPayload(_))
+        ));
+    }
+
+    #[test]
+    fn serialize_and_deserialize_request_plugin_state_snapshot_command() {
+        let protobuf_plugin_command: ProtobufPluginCommand =
+            PluginCommand::RequestPluginStateSnapshot
+                .try_into()
+                .expect("failed to serialize request-plugin-state-snapshot command");
+        assert_eq!(
+            protobuf_plugin_command.name,
+            CommandName::RequestPluginStateSnapshot as i32
+        );
+        assert!(matches!(
+            protobuf_plugin_command.payload,
+            Some(Payload::RequestPluginStateSnapshotPayload(_))
+        ));
+
+        let command: PluginCommand = protobuf_plugin_command
+            .try_into()
+            .expect("failed to deserialize request-plugin-state-snapshot command");
+        assert!(matches!(command, PluginCommand::RequestPluginStateSnapshot));
+    }
+
+    #[test]
+    fn serialize_and_deserialize_get_plugin_logs_command() {
+        let protobuf_plugin_command: ProtobufPluginCommand = PluginCommand::GetPluginLogs(Some(50))
+            .try_into()
+            .expect("failed to serialize get-plugin-logs command");
+        assert_eq!(
+            protobuf_plugin_command.name,
+            CommandName::GetPluginLogs as i32
+        );
+
+        let command: PluginCommand = protobuf_plugin_command
+            .try_into()
+            .expect("failed to deserialize get-plugin-logs command");
+        assert!(matches!(command, PluginCommand::GetPluginLogs(Some(50))));
+    }
+
+    #[test]
+    fn serialize_and_deserialize_launch_terminal_pane_command() {
+        let command = PluginCommand::LaunchTerminalPane {
+            cwd: None,
+            pane_title: Some("my-pane".to_owned()),
+            initial_input: Some("echo hi\n".to_owned()),
+            floating_pane_coordinates: None,
+            open_in_place: false,
+            floating: true,
+            close_plugin_after_replace: false,
+        };
+        let protobuf_plugin_command: ProtobufPluginCommand = command
+            .clone()
+            .try_into()
+            .expect("failed to serialize launch-terminal-pane command");
+        assert_eq!(
+            protobuf_plugin_command.name,
+            CommandName::LaunchTerminalPane as i32
+        );
+
+        let roundtripped: PluginCommand = protobuf_plugin_command
+            .try_into()
+            .expect("failed to deserialize launch-terminal-pane command");
+        assert!(matches!(
+            roundtripped,
+            PluginCommand::LaunchTerminalPane {
+                pane_title: Some(title),
+                initial_input: Some(input),
+                open_in_place: false,
+                floating: true,
+                close_plugin_after_replace: false,
+                ..
+            } if title == "my-pane" && input == "echo hi\n"
+        ));
+    }
+
+    #[test]
+    fn serialize_and_deserialize_clear_plugin_logs_command() {
+        let protobuf_plugin_command: ProtobufPluginCommand = PluginCommand::ClearPluginLogs
+            .try_into()
+            .expect("failed to serialize clear-plugin-logs command");
+        assert_eq!(
+            protobuf_plugin_command.name,
+            CommandName::ClearPluginLogs as i32
+        );
+        let roundtripped: PluginCommand = protobuf_plugin_command
+            .try_into()
+            .expect("failed to deserialize clear-plugin-logs command");
+        assert!(matches!(roundtripped, PluginCommand::ClearPluginLogs));
     }
 }
