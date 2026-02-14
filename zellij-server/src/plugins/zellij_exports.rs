@@ -14,26 +14,24 @@ use std::{
     collections::{BTreeMap, HashSet},
     io::{Read, Write},
     path::PathBuf,
-    process,
-    str::FromStr,
-    thread,
+    process, thread,
     time::{Duration, Instant},
 };
 use tokio::sync::oneshot;
 use wasmi::{Caller, Linker};
 use zellij_utils::data::{
     BreakPanesToNewTabResponse, BreakPanesToTabWithIdResponse, BreakPanesToTabWithIndexResponse,
-    CommandType, ConnectToSession, DeleteLayoutResponse, EditLayoutResponse, Event,
-    FloatingPaneCoordinates, FocusOrCreateTabResponse, GetFocusedPaneInfoResponse,
-    GetPaneCwdResponse, GetPanePidResponse, GetPaneRunningCommandResponse, HttpVerb,
-    KeyWithModifier, LayoutInfo, LayoutMetadata, LayoutParsingError, MessageToPlugin,
-    NewPanePlacement, NewTabResponse, NewTabsResponse, OpenCommandPaneBackgroundResponse,
-    OpenCommandPaneFloatingNearPluginResponse, OpenCommandPaneFloatingResponse,
-    OpenCommandPaneInPlaceOfPluginResponse, OpenCommandPaneInPlaceResponse,
-    OpenCommandPaneNearPluginResponse, OpenCommandPaneResponse, OpenFileFloatingNearPluginResponse,
-    OpenFileFloatingResponse, OpenFileInPlaceOfPluginResponse, OpenFileInPlaceResponse,
-    OpenFileNearPluginResponse, OpenFileResponse, OpenTerminalFloatingNearPluginResponse,
-    OpenTerminalFloatingResponse, OpenTerminalInPlaceOfPluginResponse, OpenTerminalInPlaceResponse,
+    ConnectToSession, DeleteLayoutResponse, EditLayoutResponse, Event, FloatingPaneCoordinates,
+    FocusOrCreateTabResponse, GetFocusedPaneInfoResponse, GetPaneCwdResponse, GetPanePidResponse,
+    GetPaneRunningCommandResponse, HttpVerb, KeyWithModifier, LayoutInfo, LayoutMetadata,
+    LayoutParsingError, MessageToPlugin, NewPanePlacement, NewTabResponse,
+    OpenCommandPaneBackgroundResponse, OpenCommandPaneFloatingNearPluginResponse,
+    OpenCommandPaneFloatingResponse, OpenCommandPaneInPlaceOfPluginResponse,
+    OpenCommandPaneInPlaceResponse, OpenCommandPaneNearPluginResponse, OpenCommandPaneResponse,
+    OpenFileFloatingNearPluginResponse, OpenFileFloatingResponse, OpenFileInPlaceOfPluginResponse,
+    OpenFileInPlaceResponse, OpenFileNearPluginResponse, OpenFileResponse,
+    OpenTerminalFloatingNearPluginResponse, OpenTerminalFloatingResponse,
+    OpenTerminalInPlaceOfPluginResponse, OpenTerminalInPlaceResponse,
     OpenTerminalNearPluginResponse, OpenTerminalResponse, OriginatingPlugin,
     PaneScrollbackResponse, PermissionStatus, PermissionType, PluginPermission,
     RenameLayoutResponse, SaveLayoutResponse, TabMetadata,
@@ -142,8 +140,6 @@ pub fn zellij_exports(linker: &mut Linker<PluginEnv>) {
 
 fn host_run_plugin_command(mut caller: Caller<'_, PluginEnv>) {
     let mut env = caller.data_mut();
-    let plugin_command = env.name();
-    let err_context = || format!("failed to run plugin command {}", plugin_command);
     wasi_read_bytes(env)
         .and_then(|bytes| {
             let command: ProtobufPluginCommand = ProtobufPluginCommand::decode(bytes.as_slice())?;
@@ -691,13 +687,46 @@ fn host_run_plugin_command(mut caller: Caller<'_, PluginEnv>) {
                     PluginCommand::RunAction(action, context) => run_action(&env, action, context),
                 },
                 (PermissionStatus::Denied, permission) => {
+                    // Some plugin APIs are synchronous from the plugin perspective (they block
+                    // waiting for a response on stdin). If we deny these and don't respond, the
+                    // plugin will hang. For these commands, return an explicit "denied" response.
+                    let denied_permission = permission
+                        .map(|p| p.to_string())
+                        .unwrap_or("UNKNOWN".to_owned());
+                    match &command {
+                        PluginCommand::LaunchTerminalPane { .. } => {
+                            let response = ProtobufLaunchTerminalPaneResponse {
+                                result: Some(launch_terminal_pane_response::Result::Error(
+                                    format!(
+                                        "Permission '{}' denied for LaunchTerminalPane",
+                                        denied_permission
+                                    ),
+                                )),
+                            };
+                            let _ = wasi_write_object(env, &response.encode_to_vec());
+                        },
+                        PluginCommand::GetPluginLogs(_) => {
+                            let response = ProtobufGetPluginLogsResponse { lines: vec![] };
+                            let _ = wasi_write_object(env, &response.encode_to_vec());
+                        },
+                        PluginCommand::ClearPluginLogs => {
+                            let response = ProtobufClearPluginLogsResponse { success: false };
+                            let _ = wasi_write_object(env, &response.encode_to_vec());
+                        },
+                        PluginCommand::GetGrantedPluginPermissions => {
+                            let response = ProtobufGetGrantedPluginPermissionsResponse {
+                                permissions: vec![],
+                            };
+                            let _ = wasi_write_object(env, &response.encode_to_vec());
+                        },
+                        _ => {},
+                    }
+
                     log::error!(
                         "Plugin '{}' permission '{}' denied - Command '{:?}' denied",
                         env.name(),
-                        permission
-                            .map(|p| p.to_string())
-                            .unwrap_or("UNKNOWN".to_owned()),
-                        CommandType::from_str(&command.to_string()).with_context(err_context)?
+                        denied_permission,
+                        command
                     );
                 },
             };
