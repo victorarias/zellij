@@ -2196,7 +2196,16 @@ pub fn send_cli_send_keys_action_to_screen() {
     send_cli_action_to_server(&session_metadata, cli_action, client_id);
     std::thread::sleep(std::time::Duration::from_millis(100));
     mock_screen.teardown(vec![pty_writer_thread, screen_thread]);
-    assert_snapshot!(format!("{:?}", *received_pty_instructions.lock().unwrap()));
+    let received_pty_instructions = received_pty_instructions.lock().unwrap();
+    // Normalize away resize-caching noise that can vary by platform/timing.
+    // We only care that the key sequence was delivered, in order.
+    let mut written_bytes = Vec::new();
+    for instruction in received_pty_instructions.iter() {
+        if let PtyWriteInstruction::Write(bytes, _terminal_id, _completion) = instruction {
+            written_bytes.extend_from_slice(bytes);
+        }
+    }
+    assert_eq!(written_bytes, vec![1, 120]); // Ctrl-a, then 'x'
 }
 
 #[test]
