@@ -2995,6 +2995,27 @@ fn launch_terminal_pane(
     floating: bool,
     close_plugin_after_replace: bool,
 ) {
+    // Prevent bypassing the existing stdin-write permission boundary: launching a pane is one
+    // permission (`OpenTerminalsOrPlugins`), but writing initial input requires `WriteToStdin`.
+    if initial_input.is_some() && !env.plugin.is_builtin() {
+        let has_write_permission = env
+            .permissions
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|p| p.contains(&PermissionType::WriteToStdin))
+            .unwrap_or(false);
+        if !has_write_permission {
+            let response = ProtobufLaunchTerminalPaneResponse {
+                result: Some(launch_terminal_pane_response::Result::Error(
+                    "LaunchTerminalPane initial_input requires WriteToStdin permission".to_owned(),
+                )),
+            };
+            let _ = wasi_write_object(env, &response.encode_to_vec());
+            return;
+        }
+    }
+
     let cwd = cwd
         .map(|cwd| env.plugin_cwd.join(cwd.path))
         .or_else(|| Some(env.plugin_cwd.clone()));
@@ -4648,7 +4669,8 @@ fn check_command_permission(
         | PluginCommand::OpenTerminalFloating(..)
         | PluginCommand::OpenTerminalFloatingNearPlugin(..)
         | PluginCommand::OpenTerminalInPlace(..)
-        | PluginCommand::OpenTerminalInPlaceOfPlugin(..) => PermissionType::OpenTerminalsOrPlugins,
+        | PluginCommand::OpenTerminalInPlaceOfPlugin(..)
+        | PluginCommand::LaunchTerminalPane { .. } => PermissionType::OpenTerminalsOrPlugins,
         PluginCommand::OpenCommandPane(..)
         | PluginCommand::OpenCommandPaneNearPlugin(..)
         | PluginCommand::OpenCommandPaneFloating(..)
@@ -4758,8 +4780,7 @@ fn check_command_permission(
         | PluginCommand::SaveLayout { .. }
         | PluginCommand::DeleteLayout { .. }
         | PluginCommand::RenameLayout { .. }
-        | PluginCommand::EditLayout { .. }
-        | PluginCommand::LaunchTerminalPane { .. } => PermissionType::ChangeApplicationState,
+        | PluginCommand::EditLayout { .. } => PermissionType::ChangeApplicationState,
         PluginCommand::UnblockCliPipeInput(..)
         | PluginCommand::BlockCliPipeInput(..)
         | PluginCommand::CliPipeOutput(..) => PermissionType::ReadCliPipes,
@@ -4776,10 +4797,7 @@ fn check_command_permission(
         | PluginCommand::ParseLayout(..)
         | PluginCommand::SaveSession
         | PluginCommand::CurrentSessionLastSavedTime
-        | PluginCommand::GetGrantedPluginPermissions
         | PluginCommand::RequestPluginStateSnapshot
-        | PluginCommand::GetPluginLogs(..)
-        | PluginCommand::ClearPluginLogs
         | PluginCommand::GetPaneInfo(..)
         | PluginCommand::GetTabInfo(..) => PermissionType::ReadApplicationState,
         PluginCommand::RebindKeys { .. } | PluginCommand::Reconfigure(..) => {
